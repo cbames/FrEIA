@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class PermuteRandom(nn.Module):
     '''permutes input vector in a random but fixed way'''
 
@@ -49,10 +48,11 @@ class FixedLinearTransform(nn.Module):
         self.M_inv = nn.Parameter(M.t().inverse(), requires_grad=False)
         self.b = nn.Parameter(b, requires_grad=False)
 
-        self.logDetM = nn.Parameter(torch.log(torch.potrf(M).diag()).sum(),
+        self.logDetM = nn.Parameter(torch.log(torch.cholesky(M).diag()).sum(),
                                     requires_grad=False)
 
     def forward(self, x, rev=False):
+
         if not rev:
             return [x[0].mm(self.M) + self.b]
         else:
@@ -66,6 +66,48 @@ class FixedLinearTransform(nn.Module):
 
     def output_dims(self, input_dims):
         return input_dims
+
+class LogitTransform(nn.Module): 
+    ''' The logit is the inverse of the sigmoid. Thus the inverse of this layer
+    when scaled properly will be bounded, this helps to avoid boundary problems '''
+
+    def __init__(self, dims_in, scaling = 0.99, eps=1e-5):
+        super().__init__()
+
+        self.scaling = nn.Parameter(torch.FloatTensor([scaling]),requires_grad=False)
+        self.last_jac = 0 
+
+    def forward(self, x, rev=False):
+
+        def safe_log(x):
+            return torch.log(x.clamp(min=1e-22))
+
+
+        if not rev:
+            # Scale to contract inside [0, 1]
+            z = ((2 * x[0] - 1) * self.scaling + 1) / 2
+            # Apply logit to map to unbounded space
+            transformed_x = safe_log(z) - safe_log(1 - z)
+            # log Jacobian of the transformed state 
+            self.last_jac = (-safe_log(z) - safe_log(1 - z)).sum(-1) #+ torch.log(self.scaling)# this term is constant across parameterizations 
+            return [transformed_x]
+
+        else:
+            # Reverse the logit
+            z = torch.sigmoid(x[0])
+
+            # Reverse the scaling operation
+            transformed_x = ((2 * z - 1) / self.scaling + 1) / 2
+            self.last_jac = (safe_log(z) + safe_log(1. - z) ).sum(-1) #- torch.log(torch.FloatTensor([self.scaling]).to(hyper_params.device))
+            return [transformed_x]
+
+    def jacobian(self, x, rev=False):
+        return self.last_jac
+
+    def output_dims(self, input_dims):
+        return input_dims
+
+
 
 class Fixed1x1Conv(nn.Module):
     '''Fixed 1x1 conv transformation with matrix M.'''
