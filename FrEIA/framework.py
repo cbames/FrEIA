@@ -60,6 +60,7 @@ class Node:
         '''
 
         if not self.input_dims:  # Only do it if this hasn't been computed yet
+
             self.input_dims = [n.build_modules(verbose=verbose)[c]
                                for n, c in self.inputs]
             try:
