@@ -5,7 +5,6 @@ import torch.nn as nn
 
 from .coeff_functs import F_conv, F_fully_connected
 
-
 class NICECouplingBlock(nn.Module):
     '''Coupling Block following the NICE design.
 
@@ -117,6 +116,7 @@ class RNVPCouplingBlock(nn.Module):
 
         return [torch.cat((y1, y2), 1)]
 
+
     def jacobian(self, x, c=[], rev=False):
         x1, x2 = (x[0].narrow(1, 0, self.split_len1),
                   x[0].narrow(1, self.split_len1, self.split_len2))
@@ -165,6 +165,7 @@ class GLOWCouplingBlock(nn.Module):
 
         self.s1 = subnet_constructor(self.split_len1 + condition_length, self.split_len2*2)
         self.s2 = subnet_constructor(self.split_len2 + condition_length, self.split_len1*2)
+
 
     def e(self, s):
         return torch.exp(self.clamp * 0.636 * torch.atan(s / self.clamp))
@@ -362,6 +363,125 @@ class AffineCouplingOneSided(nn.Module):
         assert len(input_dims) == 1, "Can only use one input."
         return input_dims
 
+class BatchNorm(nn.Module): 
+
+    def __init__(self, dims_in, dims_c=[], momentum=0.9, eps=1e-6): 
+
+        super().__init__() 
+
+        import ipdb
+        ipdb.set_trace()
+
+        self.last_jac = None 
+        self.eps = eps
+        self.momentum = momentum
+        self.log_scale = nn.Parameter(torch.zeros(1,dims_in[0][0]))
+        self.shift = nn.Parameter(torch.zeros(1,dims_in[0][0]))
+
+        self.initialized = False 
+
+
+        self.register_buffer('running_mean', torch.zeros(dims_in[0][0]))
+        self.register_buffer('running_var', torch.ones(dims_in[0][0]))
+
+    def forward(self, x, rev=False): 
+
+        if not self.initialized: 
+            self.running_mean.data = torch.mean(x[0], dim=0).data
+            self.running_var.data = ((x[0] - self.running_mean).pow(2).mean(0) + self.eps).data
+            self.initialized = True 
+
+
+        if not rev: 
+
+            if self.training:
+                self.batch_mean = torch.mean(x[0], dim=0)
+                self.batch_var  = (x[0] - self.batch_mean).pow(2).mean(0) + self.eps
+
+                self.running_mean.mul_(self.momentum)
+                self.running_var.mul_(self.momentum)
+
+                self.running_mean.add_(self.batch_mean.data *
+                                                       (1 - self.momentum))
+                self.running_var.add_(self.batch_var.data *
+                                                      (1 - self.momentum))
+
+                mean = self.batch_mean
+                var = self.batch_var
+
+            else:
+                mean = self.running_mean
+                var = self.running_var
+
+            z = (x[0]-mean)/var.sqrt()
+            z = z*torch.exp(self.log_scale) + self.shift 
+
+            self.last_jac = (self.log_scale -0.5*var.log()).sum()
+
+        else: 
+            if self.training: 
+                mean = self.batch_mean
+                var = self.batch_var
+            else: 
+                mean = self.running_mean
+                var = self.running_var
+
+            z = (x[0]-self.shift)/torch.exp(self.log_scale)
+            z = z*var.sqrt() + mean
+            self.last_jac = (-self.log_scale +0.5*var.log()).sum()
+
+        return [z] 
+
+    def jacobian(self, x, rev=False):
+        return self.last_jac
+
+    def output_dims(self, input_dims):
+        return input_dims
+
+class ActNorm(nn.Module): 
+
+    def __init__(self, dims_in, dims_c=[],eps=1e-6): 
+        super().__init__()
+
+
+        self.last_jac = None 
+        self.eps = eps 
+        self.mean = nn.Parameter(torch.zeros(1,dims_in[0][0]))
+        self.inv_std = nn.Parameter(torch.zeros(1,dims_in[0][0]))
+
+        self.initialized = False 
+
+        self.last_jac = None 
+
+    def forward(self, x, rev=False): 
+        z = None 
+
+
+        if not self.initialized: 
+
+            self.mean.data = torch.mean(x[0], dim=0)
+            self.inv_std.data = torch.log(1.0 / ( torch.sqrt(torch.var(x[0],dim=0) +  self.eps)))
+            self.initialized = True 
+
+        if not rev: 
+
+            z = (x[0]-self.mean)*self.inv_std.exp()
+            self.last_jac = self.inv_std.sum().repeat(x[0].shape[0])
+
+        else: 
+
+            z = x[0]/self.inv_std.exp() + self.mean  
+            self.last_jac = -self.inv_std.sum().repeat(x[0].shape[0])
+
+
+        return [z] 
+
+    def jacobian(self, x, rev=False):
+
+        return self.last_jac
+
+    def output_dims(self, input_dims):
+        return input_dims
 
 class ConditionalAffineTransform(nn.Module):
     '''Similar to SPADE: Perform an affine transformation on the whole input,
