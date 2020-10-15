@@ -446,8 +446,8 @@ class ActNorm(nn.Module):
 
         self.last_jac = None 
         self.eps = eps 
-        self.mean = nn.Parameter(torch.zeros(1,dims_in[0][0]))
-        self.inv_std = nn.Parameter(torch.zeros(1,dims_in[0][0]))
+        self.mean = nn.Parameter(torch.rand(1,dims_in[0][0]))
+        self.inv_std = nn.Parameter(torch.rand(1,dims_in[0][0]))
 
         self.initialized = False 
 
@@ -460,18 +460,18 @@ class ActNorm(nn.Module):
         if not self.initialized: 
 
             self.mean.data = torch.mean(x[0], dim=0)
-            self.inv_std.data = torch.log(1.0 / ( torch.sqrt(torch.var(x[0],dim=0) +  self.eps)))
+            self.inv_std.data = 1.0 / (torch.var(x[0],dim=0).sqrt() +  self.eps)
             self.initialized = True 
 
         if not rev: 
 
-            z = (x[0]-self.mean)*self.inv_std.exp()
-            self.last_jac = self.inv_std.sum().repeat(x[0].shape[0])
+            z = (x[0]-self.mean)*self.inv_std
+            self.last_jac = self.inv_std.log().sum().repeat(x[0].shape[0])
 
         else: 
 
-            z = x[0]/self.inv_std.exp() + self.mean  
-            self.last_jac = -self.inv_std.sum().repeat(x[0].shape[0])
+            z = x[0]/self.inv_std + self.mean  
+            self.last_jac = -self.inv_std.log().sum().repeat(x[0].shape[0])
 
 
         return [z] 
