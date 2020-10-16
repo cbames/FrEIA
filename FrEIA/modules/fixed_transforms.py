@@ -84,7 +84,7 @@ class LogitTransform(nn.Module):
             return torch.log(x.clamp(min=1e-13))
 
 
-        if mine: 
+        if self.mine: 
             if not rev:
 
                 # Apply logit to map to unbounded space
@@ -104,6 +104,7 @@ class LogitTransform(nn.Module):
             if not rev:
                 # Scale to contract inside [0, 1]
                 z = ((2 * x[0] - 1) * self.scaling + 1) / 2
+                
                 # Apply logit to map to unbounded space
                 transformed_x = safe_log(z) - safe_log(1 - z)
                 # log Jacobian of the transformed state 
@@ -117,11 +118,9 @@ class LogitTransform(nn.Module):
                 #x = 1 / (1 + torch.exp(-x))
                 # Reverse the scaling operation
                 z = torch.sigmoid(x[0])
-                #import ipdb 
-                #ipdb.set_trace()
-                transformed_x = ((2 * z - 1) / self.scaling + 1) / 2
-                self.last_jac =  (F.softplus(z) + F.softplus(-z)).sum(-1) #- torch.log(torch.FloatTensor([self.scaling]).to(hyper_params.device))
-                return [transformed_x]
+
+                self.last_jac =  (safe_log(z) + safe_log(1. - z) ).sum(-1)#(F.softplus(z) + F.softplus(-z)).sum(-1) #- torch.log(torch.FloatTensor([self.scaling]).to(hyper_params.device))
+                return [z]
 
     def jacobian(self, x, rev=False):
         return self.last_jac
