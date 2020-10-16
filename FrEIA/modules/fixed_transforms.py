@@ -71,7 +71,7 @@ class LogitTransform(nn.Module):
     ''' The logit is the inverse of the sigmoid. Thus the inverse of this layer
     when scaled properly will be bounded, this helps to avoid boundary problems '''
 
-    def __init__(self, dims_in, scaling = 0.99, mine=True):
+    def __init__(self, dims_in, scaling = 0.99):
         super().__init__()
 
         self.scaling = scaling
@@ -81,46 +81,24 @@ class LogitTransform(nn.Module):
     def forward(self, x, rev=False):
 
         def safe_log(x):
-            return torch.log(x.clamp(min=1e-13))
+            return torch.log(x.clamp(min=1e-22))
 
+        if not rev:
+            # Scale to contract inside [0, 1]
+            z = ((2 * x[0] - 1) * self.scaling + 1) / 2
+            # Apply logit to map to unbounded space
+            transformed_x = safe_log(z) - safe_log(1 - z)
 
-        if self.mine: 
-            if not rev:
+            # log Jacobian of the scaled state, we can ignore the scale because it's constant.
+            self.last_jac = (-safe_log(z) - safe_log(1. - z) ).sum(-1) 
+            return [transformed_x]
 
-                # Apply logit to map to unbounded space
-                transformed_x = safe_log(x[0]) - safe_log(1 - x[0])
-                # log Jacobian of the transformed state 
-                self.last_jac = (-safe_log(x[0]) - safe_log(1 - x[0])).sum(-1) 
-                return [transformed_x]
-
-            else:
-
-                # Reverse the logit
-                z = torch.sigmoid(x[0])
-                # log jac of the sigmoid 
-                self.last_jac = (safe_log(z) + safe_log(1. - z) ).sum(-1) 
-                return [z]
         else:
-            if not rev:
-                # Scale to contract inside [0, 1]
-                z = ((2 * x[0] - 1) * self.scaling + 1) / 2
-                
-                # Apply logit to map to unbounded space
-                transformed_x = safe_log(z) - safe_log(1 - z)
-                # log Jacobian of the transformed state 
-                #self.last_jac =  -torch.log(x) - torch.log(1-x) + torch.log(self.scaling)
-                #transformed_x = -safe_log(z.reciprocal() - 1.)
-                self.last_jac = (-safe_log(z) - safe_log(1. - z) ).sum(-1) #+ torch.log(torch.FloatTensor([self.scaling]).to(hyper_params.device))# this term is constant across parameterizations 
-                return [transformed_x]
-
-            else:
-                # Reverse the logit
-                #x = 1 / (1 + torch.exp(-x))
-                # Reverse the scaling operation
-                z = torch.sigmoid(x[0])
-
-                self.last_jac =  (safe_log(z) + safe_log(1. - z) ).sum(-1)#(F.softplus(z) + F.softplus(-z)).sum(-1) #- torch.log(torch.FloatTensor([self.scaling]).to(hyper_params.device))
-                return [z]
+            # Reverse the logit
+            z = torch.sigmoid(x[0])
+            # log Jacobian of the x[0]
+            self.last_jac =  (safe_log(z) + safe_log(1. - z) ).sum(-1)
+            return [z]
 
     def jacobian(self, x, rev=False):
         return self.last_jac
