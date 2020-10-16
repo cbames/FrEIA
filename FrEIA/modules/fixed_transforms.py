@@ -76,7 +76,6 @@ class LogitTransform(nn.Module):
 
         self.scaling = scaling
         self.last_jac = 0 
-        self.mine = mine 
 
     def forward(self, x, rev=False):
 
