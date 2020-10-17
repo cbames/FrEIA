@@ -71,7 +71,7 @@ class LogitTransform(nn.Module):
     ''' The logit is the inverse of the sigmoid. Thus the inverse of this layer
     when scaled properly will be bounded, this helps to avoid boundary problems '''
 
-    def __init__(self, dims_in, scaling = 0.99):
+    def __init__(self, dims_in, scaling = 0.9):
         super().__init__()
 
         self.scaling = scaling
@@ -80,7 +80,7 @@ class LogitTransform(nn.Module):
     def forward(self, x, rev=False):
 
         def safe_log(x):
-            return torch.log(x.clamp(min=1e-13))
+            return torch.log(x.clamp(min=1e-22))
 
         if not rev:
             # Scale to contract inside [0, 1]
