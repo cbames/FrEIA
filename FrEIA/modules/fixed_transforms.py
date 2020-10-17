@@ -104,42 +104,6 @@ class LogitTransform(nn.Module):
 
     def output_dims(self, input_dims):
         return input_dims
-# class LogitTransform(nn.Module): 
-#     ''' The logit is the inverse of the sigmoid. Thus the inverse of this layer
-#     when scaled properly will be bounded, this helps to avoid boundary problems '''
-
-#     def __init__(self, dims_in):
-#         super().__init__()
-
-#         self.last_jac = 0 
-
-#     def forward(self, x, rev=False):
-
-#         def safe_log(x):
-#             return torch.log(x.clamp(min=1e-13))
-
-
-#         if not rev:
-
-#             # Apply logit to map to unbounded space
-#             transformed_x = safe_log(x[0]) - safe_log(1 - x[0])
-#             # log Jacobian of the transformed state 
-#             self.last_jac = (-safe_log(x[0]) - safe_log(1 - x[0])).sum(-1) 
-#             return [transformed_x]
-
-#         else:
-
-#             # Reverse the logit
-#             z = torch.sigmoid(x[0])
-#             # log jac of the sigmoid 
-#             self.last_jac = (safe_log(z) + safe_log(1. - z) ).sum(-1) 
-#             return [z]
-
-#     def jacobian(self, x, rev=False):
-#         return self.last_jac
-
-#     def output_dims(self, input_dims):
-#         return input_dims
 
 
 class Fixed1x1Conv(nn.Module):
