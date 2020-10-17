@@ -80,7 +80,7 @@ class LogitTransform(nn.Module):
     def forward(self, x, rev=False):
 
         def safe_log(x):
-            return torch.log(x.clamp(min=1e-22))
+            return torch.log(x.clamp(min=1e-13))
 
         if not rev:
             # Scale to contract inside [0, 1]
