@@ -168,10 +168,12 @@ class GLOWCouplingBlock(nn.Module):
 
 
     def e(self, s):
-        return torch.exp(self.clamp * 0.636 * torch.atan(s / self.clamp))
+        return torch.exp(self.clamp*torch.tanh(s))
+        #return torch.exp(self.clamp * 0.636 * torch.atan(s / self.clamp))
 
     def log_e(self, s):
-        return self.clamp * 0.636 * torch.atan(s / self.clamp)
+        return self.clamp*torch.tanh(s)
+        #return self.clamp * 0.636 * torch.atan(s / self.clamp)
 
     def forward(self, x, c=[], rev=False):
         x1, x2 = (x[0].narrow(1, 0, self.split_len1),
@@ -202,6 +204,9 @@ class GLOWCouplingBlock(nn.Module):
         return [torch.cat((y1, y2), 1)]
 
     def jacobian(self, x, c=[], rev=False):
+        if self.last_jac.isnan().any():
+            import ipdb 
+            ipdb.set_trace()
         return self.last_jac
 
     def output_dims(self, input_dims):
@@ -476,6 +481,9 @@ class ActNorm(nn.Module):
         return [z] 
 
     def jacobian(self, x, rev=False):
+        if self.last_jac.isnan().any():
+            import ipdb 
+            ipdb.set_trace()
 
         return self.last_jac
 
