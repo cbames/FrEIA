@@ -154,7 +154,7 @@ class GLOWCouplingBlock(nn.Module):
         self.split_len1 = channels // 2
         self.split_len2 = channels - channels // 2
 
-        self.clamp = clamp
+        self.clamp = nn.Parameter(torch.FloatTensor([clamp]))
         self.max_s = exp(clamp)
         self.min_s = exp(-clamp)
 
@@ -455,7 +455,6 @@ class ActNorm(nn.Module):
 
     def forward(self, x, rev=False): 
         z = None 
-
 
         if not self.initialized: 
 
