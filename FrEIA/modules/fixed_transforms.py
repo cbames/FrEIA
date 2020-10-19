@@ -59,10 +59,11 @@ class FixedLinearTransform(nn.Module):
             return [(x[0]-self.b).mm(self.M_inv)]
 
     def jacobian(self, x, rev=False):
-        if rev:
-            return -self.logDetM.expand(x[0].shape[0])
-        else:
-            return self.logDetM.expand(x[0].shape[0])
+        return 0 
+        # if rev:
+        #     return -self.logDetM.expand(x[0].shape[0])
+        # else:
+        #     return self.logDetM.expand(x[0].shape[0])
 
     def output_dims(self, input_dims):
         return input_dims
@@ -100,7 +101,7 @@ class LogitTransform(nn.Module):
             return [z]
 
     def jacobian(self, x, rev=False):
-        return self.last_jac
+        return 0#self.last_jac
 
     def output_dims(self, input_dims):
         return input_dims
